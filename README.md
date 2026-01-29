@@ -1,0 +1,2 @@
+# GiveAwayBot
+Giveaway bot
