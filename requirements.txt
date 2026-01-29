@@ -1,0 +1,5 @@
+pyrogram>=2.0.0
+tgcrypto>=1.2.5
+pytz>=2023.3
+aiocron>=1.8
+apscheduler>=3.10.4
