@@ -385,19 +385,32 @@ class CallbackHandler:
             await callback_query.answer("❌ Only owner can end giveaways!", show_alert=True)
             return
         
-        from utils.scheduler import GiveawayScheduler
-        scheduler = GiveawayScheduler(self.bot, self.db)
-        
         try:
+            # Show confirmation
+            await callback_query.answer("⏳ Ending giveaway...", show_alert=False)
+            
+            # Get giveaway info
+            giveaway = await self.db.get_giveaway(giveaway_id)
+            if not giveaway:
+                await callback_query.message.edit_text("❌ Giveaway not found.")
+                return
+            
+            # End the giveaway
+            from utils.scheduler import GiveawayScheduler
+            scheduler = GiveawayScheduler(self.bot, self.db)
             await scheduler.end_giveaway(giveaway_id)
+            
+            # Update message
             await callback_query.message.edit_text(
-                f"✅ **Giveaway Ended**\n\n"
-                f"Giveaway `{giveaway_id}` has been ended manually.\n"
-                f"Winners have been selected and notified."
+                f"✅ **Giveaway Ended Successfully**\n\n"
+                f"**Event:** {giveaway.get('event_name', giveaway_id)}\n"
+                f"**Giveaway ID:** `{giveaway_id}`\n\n"
+                f"Winners have been selected and notified in broadcast channels.\n"
+                f"Winners will also receive DM notifications."
             )
-            await callback_query.answer("✅ Giveaway ended!")
+            
         except Exception as e:
-            print(f"Error ending giveaway: {e}")
+            logger.error(f"Error ending giveaway: {e}", exc_info=True)
             await callback_query.answer("❌ Error ending giveaway!", show_alert=True)
     
     async def handle_confirm_create(self, callback_query: CallbackQuery):
@@ -471,4 +484,5 @@ Participants can now join using `/part`
             "❌ **Giveaway creation cancelled.**\n\n"
             "Use `/sgive` to start a new giveaway creation."
         )
+
         await callback_query.answer("❌ Cancelled!")
