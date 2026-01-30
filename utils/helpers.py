@@ -135,4 +135,37 @@ class Helpers:
     def validate_phone_number(phone: str) -> bool:
         """Validate phone number format"""
         pattern = r'^\+?1?\d{9,15}$'
+
         return bool(re.match(pattern, phone))
+
+    @staticmethod
+    def get_time_remaining(end_time: datetime) -> str:
+        """Get formatted time remaining until end time"""
+        now = datetime.now(pytz.UTC)
+        
+        if isinstance(end_time, str):
+            if '+' in end_time or end_time.endswith('Z'):
+                end_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+            else:
+                end_time = datetime.fromisoformat(end_time).replace(tzinfo=pytz.UTC)
+        
+        if now > end_time:
+            return "Ended"
+        
+        diff = end_time - now
+        days = diff.days
+        hours = diff.seconds // 3600
+        minutes = (diff.seconds % 3600) // 60
+        seconds = diff.seconds % 60
+        
+        parts = []
+        if days > 0:
+            parts.append(f"{days}d")
+        if hours > 0:
+            parts.append(f"{hours}h")
+        if minutes > 0:
+            parts.append(f"{minutes}m")
+        if seconds > 0 and not parts:  # Only show seconds if less than a minute
+            parts.append(f"{seconds}s")
+        
+        return " ".join(parts) if parts else "Less than a minute"
