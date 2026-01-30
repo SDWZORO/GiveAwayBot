@@ -32,24 +32,19 @@ class UserCommands:
 **Hᴇʏ {user_mention}!**
 
 I ᴍᴀɴᴀɢᴇ ᴏғғɪᴄɪᴀʟ Sᴍᴀsʜ ᴄᴏɴᴛᴇsᴛs ᴡɪᴛʜ:
-• ✅ Fᴀɪʀ ᴡɪɴɴᴇʀ sᴇʟᴇᴄᴛɪᴏɴ
-• ✅ Sᴇᴄᴜʀᴇ ᴇɴᴛʀɪᴇs
-• ✅ Eᴘɪᴄ ʀᴇᴡᴀʀᴅs 🏆
 
 **🎁 Fᴇᴀᴛᴜʀᴇs:**
 • Jᴏɪɴ ɢɪᴠᴇᴀᴡᴀʏs ᴇᴀsɪʟʏ
 • Tʀᴀᴄᴋ ʏᴏᴜʀ sᴛᴀᴛs 📊
 • Wɪɴ ʙɪɢ ʀᴇᴡᴀʀᴅs ⚡️
 
-**⚡️ Usᴇ /ᴘᴀʀᴛ ᴛᴏ ᴇɴᴛᴇʀ ᴛʜᴇ ᴀᴄᴛɪᴠᴇ ɢɪᴠᴇᴀᴡᴀʏ ɴᴏᴡ!**
-**📊 Usᴇ /ɢsᴛᴀᴛs ᴛᴏ ᴄʜᴇᴄᴋ ᴀᴄᴛɪᴠᴇ ɢɪᴠᴇᴀᴡᴀʏs**
+**⚡️ Usᴇ /part ᴛᴏ ᴇɴᴛᴇʀ ᴛʜᴇ ᴀᴄᴛɪᴠᴇ ɢɪᴠᴇᴀᴡᴀʏ ɴᴏᴡ!**
+**📊 Usᴇ /gstats ᴛᴏ ᴄʜᴇᴄᴋ ᴀᴄᴛɪᴠᴇ ɢɪᴠᴇᴀᴡᴀʏs**
 
 **📢 Rᴇǫᴜɪʀᴇᴍᴇɴᴛs:**
 1. Mᴜsᴛ ᴊᴏɪɴ ᴀʟʟ ʀᴇǫᴜɪʀᴇᴅ ᴄʜᴀɴɴᴇʟs
 2. Nᴏ ᴍᴜʟᴛɪᴘʟᴇ ᴀᴄᴄᴏᴜɴᴛs
 
-**✅ Nᴏ Aᴄᴄᴏᴜɴᴛ Aɢᴇ Rᴇsᴛʀɪᴄᴛɪᴏɴ**
-**✅ Nᴏ Pʀᴏғɪʟᴇ Pʜᴏᴛᴏ Rᴇǫᴜɪʀᴇᴅ**
         """
         
         # Create buttons for quick actions
@@ -60,7 +55,7 @@ I ᴍᴀɴᴀɢᴇ ᴏғғɪᴄɪᴀʟ Sᴍᴀsʜ ᴄᴏɴᴛᴇsᴛs ᴡɪᴛʜ
             ],
             [
                 InlineKeyboardButton("📢 Our Channels", url="https://t.me/Smash_uploads"),
-                InlineKeyboardButton("🤖 Bot Updates", url="https://t.me/ShadowBotsHQ")
+                InlineKeyboardButton("🤖 Bot Updates", url="https://t.me/Smas_Updates")
             ]
         ])
         
@@ -296,3 +291,4 @@ Good luck 🍀 May the odds be in your favor!
             await self.bot.send_message(self.config.OWNER_ID, log_text)
         except Exception as e:
             print(f"Error sending log to owner: {e}")
+
