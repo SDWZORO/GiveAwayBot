@@ -9,7 +9,7 @@ class Config:
     
     # Required Channels/Groups (for subscription check)
     # Format: "username" without @
-    REQUIRED_CHANNELS = ["Smash_uploads", "ShadowBotsHQ", "Main_smash"]
+    REQUIRED_CHANNELS = ["Smash_uploads", "Smash_Updates", "Main_smash"]
     
     # Timezone
     TIMEZONE = "Asia/Kolkata"
@@ -25,4 +25,5 @@ class Config:
     
     # Bot Settings
     MAX_PARTICIPANTS_PER_PAGE = 50
+
     GIVEAWAY_CHECK_INTERVAL = 60  # seconds
