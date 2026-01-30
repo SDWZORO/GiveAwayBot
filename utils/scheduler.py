@@ -1,5 +1,4 @@
-[file name]: scheduler.py
-[file content begin]
+
 import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, List
@@ -342,3 +341,4 @@ Thank you for participating! 🎮
         self.scheduler.shutdown(wait=False)
         logger.info("Scheduler stopped")
 [file content end]
+
