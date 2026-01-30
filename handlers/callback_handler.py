@@ -1,5 +1,4 @@
-[file name]: callback_handler.py
-[file content begin]
+
 from pyrogram import Client
 from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, Message
 from datetime import datetime
@@ -596,4 +595,4 @@ Please check your settings and try again using `/sgive`
             "Use `/sgive` to start a new giveaway creation."
         )
         await callback_query.answer("❌ Cancelled!")
-[file content end]
+
