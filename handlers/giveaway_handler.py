@@ -50,7 +50,7 @@ class GiveawayHandler:
             await message.reply(
                 "✅ **Event name saved!**\n\n"
                 "**Step 2/6:** Select prize type:\n\n"
-                "1️⃣ **Coins** - Virtual currency\n"
+                "1️⃣ **Kryps** - Virtual currency\n"
                 "2️⃣ **Characters** - Game characters\n\n"
                 "Reply with **1** or **2**:"
             )
@@ -63,12 +63,12 @@ class GiveawayHandler:
             elif choice == "2":
                 data["prize_type"] = "characters"
             else:
-                await message.reply("❌ Invalid choice. Please reply with **1** for Coins or **2** for Characters:")
+                await message.reply("❌ Invalid choice. Please reply with **1** for Kryps or **2** for Characters:")
                 return
             
             state["step"] = 3
             
-            prize_example = "1000 Smash Coins" if data["prize_type"] == "coins" else "Legendary Character Card"
+            prize_example = "1000 Kryps" if data["prize_type"] == "coins" else "Legendary Character Card"
             await message.reply(
                 f"✅ **Prize type set to: {data['prize_type'].title()}**\n\n"
                 f"**Step 3/6:** Enter prize details:\n\n"
@@ -397,4 +397,5 @@ Thank you for participating! 🎮
                 await bot.send_message(winner_id, message_text)
                 print(f"Notified winner: {winner_id}")
             except Exception as e:
+
                 print(f"Error notifying winner {winner_id}: {e}")
