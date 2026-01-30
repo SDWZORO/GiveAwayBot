@@ -340,5 +340,4 @@ Thank you for participating! 🎮
         """Stop the scheduler"""
         self.scheduler.shutdown(wait=False)
         logger.info("Scheduler stopped")
-[file content end]
 
