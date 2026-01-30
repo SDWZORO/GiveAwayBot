@@ -12,7 +12,7 @@ class AdminCommands:
         self.config = config
         self.bot_instance = bot_instance  # Reference to main bot instance
         
-        # Register admin commands
+        # Register admin commands (private only for security)
         self.bot.on_message(filters.command("sgive") & filters.private)(self.create_giveaway)
         self.bot.on_message(filters.command("end") & filters.private)(self.end_giveaway)
         self.bot.on_message(filters.command("cwinner") & filters.private)(self.manual_winner)
@@ -28,13 +28,12 @@ class AdminCommands:
         return user_id == self.config.OWNER_ID
     
     async def create_giveaway(self, client: Client, message: Message):
-        """Create giveaway wizard"""
+        """Create giveaway wizard (private only)"""
         if not await self.is_owner(message.from_user.id):
             await message.reply("❌ This command is only for bot owner.")
             return
         
         # Start giveaway creation wizard
-        # Get giveaway handler from bot instance
         giveaway_handler = None
         
         # Try to get giveaway_handler from bot attribute
@@ -55,7 +54,7 @@ class AdminCommands:
         await giveaway_handler.start_creation_wizard(message)
     
     async def end_giveaway(self, client: Client, message: Message):
-        """Force end a giveaway"""
+        """Force end a giveaway (works in both private and groups for admin)"""
         if not await self.is_owner(message.from_user.id):
             await message.reply("❌ This command is only for bot owner.")
             return
@@ -77,10 +76,17 @@ class AdminCommands:
         scheduler = GiveawayScheduler(self.bot, self.db)
         await scheduler.end_giveaway(giveaway_id)
         
-        await message.reply("✅ Giveaway ended successfully.")
+        await message.reply(f"""
+✅ **Giveaway Ended Successfully**
+
+**Event:** {giveaway.get('event_name', 'Unknown')}
+**Giveaway ID:** `{giveaway_id}`
+
+Winners have been selected and announced.
+        """)
     
     async def manual_winner(self, client: Client, message: Message):
-        """Manually set winner"""
+        """Manually set winner (private only)"""
         if not await self.is_owner(message.from_user.id):
             await message.reply("❌ This command is only for bot owner.")
             return
@@ -117,7 +123,16 @@ class AdminCommands:
         except:
             user_mention = str(user_id)
         
-        await message.reply(f"✅ User {user_mention} set as winner for giveaway {giveaway_id}.")
+        await message.reply(f"""
+✅ **Manual Winner Set**
+
+**User:** {user_mention}
+**User ID:** `{user_id}`
+**Giveaway:** {giveaway.get('event_name', giveaway_id)}
+**Giveaway ID:** `{giveaway_id}`
+
+Winner has been added to the database.
+        """)
         
         # Log the action
         await self.db.add_log(
@@ -128,7 +143,7 @@ class AdminCommands:
         )
     
     async def view_participants(self, client: Client, message: Message):
-        """View giveaway participants"""
+        """View giveaway participants (private only)"""
         if not await self.is_owner(message.from_user.id):
             await message.reply("❌ This command is only for bot owner.")
             return
@@ -162,10 +177,13 @@ class AdminCommands:
         giveaway = await self.db.get_giveaway(giveaway_id)
         giveaway_name = giveaway.get('event_name', giveaway_id) if giveaway else giveaway_id
         
-        text = f"**Participants for: {giveaway_name}**\n"
-        text += f"**Giveaway ID:** `{giveaway_id}`\n"
-        text += f"**Total:** {total_participants}\n"
-        text += f"**Page:** {page + 1}/{total_pages}\n\n"
+        text = f"""
+👥 **Participants for: {giveaway_name}**
+
+**🎫 Giveaway ID:** `{giveaway_id}`
+**📊 Total Participants:** {total_participants}
+**📄 Page:** {page + 1}/{total_pages}
+        """
         
         for i, (user_id_str, user_data) in enumerate(participant_list[start_idx:end_idx], start=1):
             user_id = int(user_id_str)
@@ -178,9 +196,9 @@ class AdminCommands:
             except:
                 username = f"User {user_id}"
             
-            text += f"**{start_idx + i}. {username}**\n"
-            text += f"   ID: `{user_id}`\n"
-            text += f"   Joined: {joined_at[:19]}\n\n"
+            text += f"\n**{start_idx + i}. {username}**"
+            text += f"\n   🆔 ID: `{user_id}`"
+            text += f"\n   ⏰ Joined: {joined_at[:19]}"
         
         # Create pagination buttons
         from utils.helpers import Helpers
@@ -205,7 +223,7 @@ class AdminCommands:
         await message.reply(text, reply_markup=markup)
     
     async def remove_participant(self, client: Client, message: Message):
-        """Remove participant from giveaway"""
+        """Remove participant from giveaway (private only)"""
         if not await self.is_owner(message.from_user.id):
             await message.reply("❌ This command is only for bot owner.")
             return
@@ -224,7 +242,14 @@ class AdminCommands:
         
         # Remove participant
         if await self.db.remove_participant(giveaway_id, user_id):
-            await message.reply(f"✅ User {user_id} removed from giveaway.")
+            await message.reply(f"""
+✅ **Participant Removed**
+
+**User ID:** `{user_id}`
+**Giveaway ID:** `{giveaway_id}`
+
+User has been removed from the giveaway.
+            """)
             
             # Log the action
             await self.db.add_log(
@@ -237,7 +262,7 @@ class AdminCommands:
             await message.reply("❌ User not found in giveaway.")
     
     async def ban_user(self, client: Client, message: Message):
-        """Ban user globally"""
+        """Ban user globally (private only)"""
         if not await self.is_owner(message.from_user.id):
             await message.reply("❌ This command is only for bot owner.")
             return
@@ -264,10 +289,18 @@ class AdminCommands:
         except:
             user_info = str(user_id)
         
-        await message.reply(f"✅ User {user_info} has been banned globally.\nReason: {reason}")
+        await message.reply(f"""
+✅ **User Banned Globally**
+
+**👤 User:** {user_info}
+**🆔 ID:** `{user_id}`
+**📝 Reason:** {reason}
+
+User can no longer use the bot.
+        """)
     
     async def unban_user(self, client: Client, message: Message):
-        """Unban user"""
+        """Unban user (private only)"""
         if not await self.is_owner(message.from_user.id):
             await message.reply("❌ This command is only for bot owner.")
             return
@@ -291,12 +324,19 @@ class AdminCommands:
             except:
                 user_info = str(user_id)
             
-            await message.reply(f"✅ User {user_info} has been unbanned.")
+            await message.reply(f"""
+✅ **User Unbanned**
+
+**👤 User:** {user_info}
+**🆔 ID:** `{user_id}`
+
+User can now use the bot again.
+            """)
         else:
             await message.reply("❌ User not found in ban list.")
     
     async def set_broadcast(self, client: Client, message: Message):
-        """Set broadcast chats using usernames"""
+        """Set broadcast chats using usernames (private only)"""
         if not await self.is_owner(message.from_user.id):
             await message.reply("❌ This command is only for bot owner.")
             return
@@ -309,7 +349,7 @@ class AdminCommands:
                 await message.reply("📭 No broadcast chats set.\n\nUsage: /set @username1 @username2 ...")
                 return
             
-            text = "**📢 Current Broadcast Chats:**\n\n"
+            text = "📢 **Current Broadcast Chats:**\n\n"
             for chat in broadcast_chats:
                 chat_username = chat.get('username', 'Unknown')
                 chat_name = chat.get('name', f"@{chat_username}")
@@ -353,7 +393,7 @@ class AdminCommands:
                     failed.append(f"@{username} (already exists)")
                     
             except Exception as e:
-                failed.append(f"@{username} (error: {str(e)}")
+                failed.append(f"@{username} (error: {str(e)})")
         
         result_text = f"✅ Added {added} broadcast chats.\n"
         if failed:
@@ -364,7 +404,7 @@ class AdminCommands:
         await message.reply(result_text)
     
     async def giveaway_stats(self, client: Client, message: Message):
-        """Show giveaway statistics"""
+        """Show giveaway statistics (works in both private and groups for admin)"""
         if not await self.is_owner(message.from_user.id):
             await message.reply("❌ This command is only for bot owner.")
             return
@@ -378,7 +418,7 @@ class AdminCommands:
                 await message.reply("📊 No active giveaways found.")
                 return
             
-            text = "**📊 Active Giveaways**\n\n"
+            text = "📊 **Active Giveaways**\n\n"
             for giveaway in giveaways[:10]:  # Show only first 10
                 giveaway_id = giveaway['id']
                 participants = await self.db.get_participants(giveaway_id)
@@ -389,12 +429,12 @@ class AdminCommands:
                 end_time = datetime.fromisoformat(giveaway.get('end_time'))
                 
                 text += f"**🏷 Event:** {giveaway.get('event_name', 'N/A')}\n"
-                text += f"**ID:** `{giveaway_id}`\n"
-                text += f"**Prize:** {giveaway.get('prize_type', 'N/A').title()} - {giveaway.get('prize_details', 'N/A')}\n"
-                text += f"**Participants:** {len(participants)}\n"
-                text += f"**Winners:** {len(winners)}\n"
-                text += f"**Ends:** {Helpers.format_ist_time(end_time)}\n"
-                text += f"**Time Left:** {Helpers.format_time_difference(datetime.now(pytz.UTC), end_time)}\n"
+                text += f"**🎫 ID:** `{giveaway_id}`\n"
+                text += f"**🎁 Prize:** {giveaway.get('prize_type', 'N/A').title()} - {giveaway.get('prize_details', 'N/A')}\n"
+                text += f"**👥 Participants:** {len(participants)}\n"
+                text += f"**🏆 Winners:** {len(winners)}\n"
+                text += f"**⏰ Ends:** {Helpers.format_ist_time(end_time)}\n"
+                text += f"**⏳ Time Left:** {Helpers.get_time_remaining(end_time)}\n"
                 text += "─" * 30 + "\n"
             
             if len(giveaways) > 10:
@@ -416,25 +456,28 @@ class AdminCommands:
         
         from utils.helpers import Helpers
         
-        text = f"**📊 Giveaway Statistics**\n\n"
-        text += f"**ID:** `{giveaway_id}`\n"
-        text += f"**Event:** {giveaway.get('event_name', 'N/A')}\n"
-        text += f"**Prize:** {giveaway.get('prize_type', 'N/A').title()} - {giveaway.get('prize_details', 'N/A')}\n"
-        text += f"**Winner Count:** {giveaway.get('winner_count', 0)}\n"
-        text += f"**Status:** {giveaway.get('status', 'unknown').upper()}\n"
-        text += f"**Start Time:** {Helpers.format_ist_time(datetime.fromisoformat(giveaway.get('start_time')))}\n"
-        text += f"**End Time:** {Helpers.format_ist_time(datetime.fromisoformat(giveaway.get('end_time')))}\n"
-        text += f"**Participants:** {len(participants)}\n"
-        text += f"**Winners:** {len(winners)}\n"
+        text = f"""
+📊 **Giveaway Statistics** 📊
+
+**🎫 ID:** `{giveaway_id}`
+**🏷 Event:** {giveaway.get('event_name', 'N/A')}
+**🎁 Prize:** {giveaway.get('prize_type', 'N/A').title()} - {giveaway.get('prize_details', 'N/A')}
+**🏆 Winner Count:** {giveaway.get('winner_count', 0)}
+**📊 Status:** {giveaway.get('status', 'unknown').upper()}
+**⏰ Start Time:** {Helpers.format_ist_time(datetime.fromisoformat(giveaway.get('start_time')))}
+**⏰ End Time:** {Helpers.format_ist_time(datetime.fromisoformat(giveaway.get('end_time')))}
+**👥 Participants:** {len(participants)}
+**🏆 Winners:** {len(winners)}
+        """
         
         # Add time remaining if active
         if giveaway.get('status') == 'active':
             end_time = datetime.fromisoformat(giveaway.get('end_time'))
-            time_left = Helpers.format_time_difference(datetime.now(pytz.UTC), end_time)
-            text += f"**Time Left:** {time_left}\n"
+            time_left = Helpers.get_time_remaining(end_time)
+            text += f"\n**⏳ Time Left:** {time_left}"
         
         if winners:
-            text += "\n**🏆 Winners:**\n"
+            text += "\n\n**🏆 Winners:**\n"
             for i, winner in enumerate(winners, 1):
                 user_id = winner.get('user_id')
                 try:
