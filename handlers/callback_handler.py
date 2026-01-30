@@ -1,8 +1,13 @@
+[file name]: callback_handler.py
+[file content begin]
 from pyrogram import Client
 from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, Message
 from datetime import datetime
 import pytz
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 class CallbackHandler:
     def __init__(self, bot: Client, db, config):
@@ -18,6 +23,12 @@ class CallbackHandler:
         data = callback_query.data
         
         try:
+            # Check if user is banned
+            user_id = callback_query.from_user.id
+            if await self.db.is_banned(user_id):
+                await callback_query.answer("🚫 You are banned from using this bot!", show_alert=True)
+                return
+            
             if data.startswith("verify_sub_"):
                 await self.handle_verify_subscription(callback_query)
             elif data.startswith("check_subscription"):
@@ -40,8 +51,11 @@ class CallbackHandler:
                 await callback_query.answer("❌ Unknown action!", show_alert=True)
         
         except Exception as e:
-            print(f"❌ Error handling callback: {e}")
-            await callback_query.answer("❌ An error occurred!", show_alert=True)
+            logger.error(f"❌ Error handling callback: {e}", exc_info=True)
+            try:
+                await callback_query.answer("❌ An error occurred! Please try again.", show_alert=True)
+            except:
+                pass
     
     async def get_giveaway_handler(self):
         """Get giveaway handler instance"""
@@ -60,6 +74,32 @@ class CallbackHandler:
         user_id = callback_query.from_user.id
         giveaway_id = callback_query.data.replace("verify_sub_", "")
         
+        # Check if in group chat - redirect to private
+        if callback_query.message.chat.type != "private":
+            try:
+                await callback_query.answer(
+                    "⚠️ Please use this button in private chat with me for better experience!",
+                    show_alert=True
+                )
+                # Try to send a message in private
+                try:
+                    await self.bot.send_message(
+                        user_id,
+                        f"👋 Hello! Please click the button below to continue:\n\n"
+                        f"Giveaway ID: `{giveaway_id}`",
+                        reply_markup=InlineKeyboardMarkup([[
+                            InlineKeyboardButton(
+                                "✅ Verify Subscription",
+                                callback_data=f"verify_sub_{giveaway_id}"
+                            )
+                        ]])
+                    )
+                except:
+                    pass
+                return
+            except:
+                pass
+        
         # Check cooldown
         if not await self.db.check_cooldown(user_id, "check_subscription"):
             remaining = await self.db.get_remaining_cooldown(user_id, "check_subscription")
@@ -72,6 +112,9 @@ class CallbackHandler:
         # Set cooldown
         await self.db.set_cooldown(user_id, "check_subscription", self.config.COOLDOWN_CHECK)
         
+        # Show checking message
+        await callback_query.message.edit_text("🔍 **Checking your subscriptions...**")
+        
         # Check subscription
         from utils.channel_checker import ChannelChecker
         checker = ChannelChecker(self.bot, self.config.REQUIRED_CHANNELS)
@@ -80,12 +123,12 @@ class CallbackHandler:
         if not subscribed:
             # Still not subscribed
             text = "❌ **Subscription Check Failed**\n\n"
-            text += "You haven't joined all required channels:\n\n"
+            text += "You must join all these channels to participate:\n\n"
             
             for channel in missing:
                 text += f"• {channel['name']}\n"
             
-            text += "\nPlease join all channels and try again."
+            text += "\nClick the buttons below to join, then verify again."
             
             # Create new buttons
             buttons = []
@@ -97,7 +140,7 @@ class CallbackHandler:
                 
                 buttons.append([
                     InlineKeyboardButton(
-                        f"Join {channel['name']}",
+                        f"📢 Join {channel['name']}",
                         url=url
                     )
                 ])
@@ -111,7 +154,7 @@ class CallbackHandler:
             
             markup = InlineKeyboardMarkup(buttons)
             await callback_query.message.edit_text(text, reply_markup=markup)
-            await callback_query.answer()
+            await callback_query.answer("❌ Please join all channels!")
             return
         
         # User is subscribed, check other requirements
@@ -148,10 +191,19 @@ class CallbackHandler:
             # Set participation cooldown
             await self.db.set_cooldown(user_id, "participate", self.config.COOLDOWN_PARTICIPATE)
             
-            # Update message
-            await callback_query.message.edit_text(
-                "🎉 **Entry Confirmed!**\n\nGood luck! 🍀"
-            )
+            # Update message with success
+            success_text = f"""
+🎉 **Entry Confirmed!** 🎉
+
+**🏷 Event:** {giveaway['event_name']}
+**🎁 Prize:** {giveaway['prize_details']}
+**🎫 Your Entry ID:** `{user_id}_{giveaway_id}`
+**⏰ Joined At:** {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}
+
+Good luck! 🍀 May you win this giveaway!
+            """
+            
+            await callback_query.message.edit_text(success_text)
             
             # Log to owner
             from handlers.user_commands import UserCommands
@@ -197,6 +249,11 @@ class CallbackHandler:
             giveaway_id = data_parts[2]
             page = int(data_parts[3])
             
+            # Check if user is owner
+            if callback_query.from_user.id != self.config.OWNER_ID:
+                await callback_query.answer("❌ Only owner can view participants!", show_alert=True)
+                return
+            
             # Get giveaway
             giveaway = await self.db.get_giveaway(giveaway_id)
             if not giveaway:
@@ -225,10 +282,14 @@ class CallbackHandler:
             # Format message
             giveaway_name = giveaway.get('event_name', giveaway_id)
             
-            text = f"**Participants for: {giveaway_name}**\n"
-            text += f"**Giveaway ID:** `{giveaway_id}`\n"
-            text += f"**Total:** {total_participants}\n"
-            text += f"**Page:** {page + 1}/{total_pages}\n\n"
+            text = f"""
+👥 **Participants for: {giveaway_name}**
+
+**🎫 Giveaway ID:** `{giveaway_id}`
+**📊 Total Participants:** {total_participants}
+**📄 Page:** {page + 1}/{total_pages}
+
+            """
             
             for i, (user_id_str, user_data) in enumerate(participant_list[start_idx:end_idx], start=1):
                 user_id = int(user_id_str)
@@ -242,8 +303,8 @@ class CallbackHandler:
                     username = f"User {user_id}"
                 
                 text += f"**{start_idx + i}. {username}**\n"
-                text += f"   ID: `{user_id}`\n"
-                text += f"   Joined: {joined_at[:19]}\n\n"
+                text += f"   🆔 ID: `{user_id}`\n"
+                text += f"   ⏰ Joined: {joined_at[:19]}\n\n"
             
             # Create pagination buttons
             buttons = []
@@ -251,7 +312,7 @@ class CallbackHandler:
                 buttons.append(InlineKeyboardButton("◀️ Previous", 
                              callback_data=f"admin_parts_{giveaway_id}_{page-1}"))
             
-            buttons.append(InlineKeyboardButton(f"Page {page+1}/{total_pages}", 
+            buttons.append(InlineKeyboardButton(f"📄 {page+1}/{total_pages}", 
                          callback_data="noop"))
             
             if page < total_pages - 1:
@@ -271,13 +332,18 @@ class CallbackHandler:
             await callback_query.answer()
             
         except Exception as e:
-            print(f"Error in handle_admin_participants: {e}")
+            logger.error(f"Error in handle_admin_participants: {e}", exc_info=True)
             await callback_query.answer("❌ Error loading participants!")
     
     async def handle_remove_participant_menu(self, callback_query: CallbackQuery):
         """Show remove participant menu"""
         try:
             giveaway_id = callback_query.data.replace("remove_part_menu_", "")
+            
+            # Check if user is owner
+            if callback_query.from_user.id != self.config.OWNER_ID:
+                await callback_query.answer("❌ Only owner can remove participants!", show_alert=True)
+                return
             
             participants = await self.db.get_participants(giveaway_id)
             
@@ -290,7 +356,9 @@ class CallbackHandler:
             buttons = []
             participant_list = list(participants.items())[:10]
             
-            for user_id_str, user_data in participant_list:
+            text = "**Select a participant to remove:**\n\n"
+            
+            for idx, (user_id_str, user_data) in enumerate(participant_list, 1):
                 user_id = int(user_id_str)
                 username = user_data.get('username', f'User {user_id}')
                 first_name = user_data.get('first_name', '')
@@ -305,6 +373,8 @@ class CallbackHandler:
                         callback_data=f"remove_part_{giveaway_id}_{user_id}"
                     )
                 ])
+                
+                text += f"{idx}. {display_name}\n"
             
             # Add back button
             buttons.append([
@@ -315,14 +385,13 @@ class CallbackHandler:
             markup = InlineKeyboardMarkup(buttons)
             
             await callback_query.message.edit_text(
-                "**Select a participant to remove:**\n\n"
-                "Click on a button below to remove that participant.",
+                text,
                 reply_markup=markup
             )
             await callback_query.answer()
             
         except Exception as e:
-            print(f"Error in handle_remove_participant_menu: {e}")
+            logger.error(f"Error in handle_remove_participant_menu: {e}", exc_info=True)
             await callback_query.answer("❌ Error loading menu!")
     
     async def handle_remove_participant(self, callback_query: CallbackQuery):
@@ -335,6 +404,11 @@ class CallbackHandler:
             
             giveaway_id = data_parts[2]
             user_id = int(data_parts[3])
+            
+            # Check if user is owner
+            if callback_query.from_user.id != self.config.OWNER_ID:
+                await callback_query.answer("❌ Only owner can remove participants!", show_alert=True)
+                return
             
             # Get user info before removing
             try:
@@ -349,13 +423,18 @@ class CallbackHandler:
                 giveaway = await self.db.get_giveaway(giveaway_id)
                 giveaway_name = giveaway.get('event_name', giveaway_id) if giveaway else giveaway_id
                 
-                await callback_query.message.edit_text(
-                    f"✅ **Participant Removed**\n\n"
-                    f"**User:** {user_info}\n"
-                    f"**ID:** `{user_id}`\n"
-                    f"**Giveaway:** {giveaway_name}\n"
-                    f"**Giveaway ID:** `{giveaway_id}`"
-                )
+                success_text = f"""
+✅ **Participant Removed**
+
+**👤 User:** {user_info}
+**🆔 ID:** `{user_id}`
+**🎁 Giveaway:** {giveaway_name}
+**🎫 Giveaway ID:** `{giveaway_id}`
+
+User has been removed from the giveaway.
+                """
+                
+                await callback_query.message.edit_text(success_text)
                 
                 # Log the action
                 await self.db.add_log(
@@ -365,6 +444,13 @@ class CallbackHandler:
                     f"Removed user {user_id} ({user_info})"
                 )
                 
+                # Add back button
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 Back to Participants", 
+                    callback_data=f"admin_parts_{giveaway_id}_0")
+                ]])
+                
+                await callback_query.message.edit_text(success_text, reply_markup=keyboard)
                 await callback_query.answer("✅ Participant removed!")
             else:
                 await callback_query.message.edit_text("❌ User not found in giveaway.")
@@ -373,7 +459,7 @@ class CallbackHandler:
         except ValueError:
             await callback_query.answer("❌ Invalid user ID!")
         except Exception as e:
-            print(f"Error in handle_remove_participant: {e}")
+            logger.error(f"Error in handle_remove_participant: {e}", exc_info=True)
             await callback_query.answer("❌ Error removing participant!")
     
     async def handle_end_giveaway(self, callback_query: CallbackQuery):
@@ -395,19 +481,34 @@ class CallbackHandler:
                 await callback_query.message.edit_text("❌ Giveaway not found.")
                 return
             
+            # Update message to show processing
+            await callback_query.message.edit_text(
+                f"🔄 **Ending Giveaway...**\n\n"
+                f"**Event:** {giveaway.get('event_name', giveaway_id)}\n"
+                f"**Giveaway ID:** `{giveaway_id}`\n\n"
+                f"Please wait while winners are selected..."
+            )
+            
             # End the giveaway
             from utils.scheduler import GiveawayScheduler
             scheduler = GiveawayScheduler(self.bot, self.db)
             await scheduler.end_giveaway(giveaway_id)
             
             # Update message
-            await callback_query.message.edit_text(
-                f"✅ **Giveaway Ended Successfully**\n\n"
-                f"**Event:** {giveaway.get('event_name', giveaway_id)}\n"
-                f"**Giveaway ID:** `{giveaway_id}`\n\n"
-                f"Winners have been selected and notified in broadcast channels.\n"
-                f"Winners will also receive DM notifications."
-            )
+            success_text = f"""
+✅ **Giveaway Ended Successfully**
+
+**🏷 Event:** {giveaway.get('event_name', giveaway_id)}
+**🎫 Giveaway ID:** `{giveaway_id}`
+
+Winners have been selected and announced in all broadcast channels.
+Winners will also receive DM notifications.
+
+Thank you for using Smash Giveaway Bot! 🎮
+            """
+            
+            await callback_query.message.edit_text(success_text)
+            await callback_query.answer("✅ Giveaway ended successfully!")
             
         except Exception as e:
             logger.error(f"Error ending giveaway: {e}", exc_info=True)
@@ -422,6 +523,9 @@ class CallbackHandler:
             await callback_query.answer("❌ Only owner can create giveaways!", show_alert=True)
             return
         
+        # Show processing message
+        await callback_query.message.edit_text("🔄 **Creating giveaway...**")
+        
         # Get giveaway handler
         giveaway_handler = await self.get_giveaway_handler()
         
@@ -434,13 +538,15 @@ class CallbackHandler:
                 giveaway_name = giveaway.get('event_name', 'Unknown') if giveaway else 'Unknown'
                 
                 success_text = f"""
-✅ **Giveaway Created Successfully!**
+✅ **Giveaway Created Successfully!** 🎉
 
-**Event:** {giveaway_name}
-**Giveaway ID:** `{giveaway_id}`
+**🏷 Event:** {giveaway_name}
+**🎫 Giveaway ID:** `{giveaway_id}`
 
 The giveaway has been announced in all broadcast channels.
 Participants can now join using `/part`
+
+**⚡️ Good luck to all participants!**
                 """
                 
                 await callback_query.message.edit_text(success_text)
@@ -454,14 +560,19 @@ Participants can now join using `/part`
                     f"Created giveaway: {giveaway_name}"
                 )
             else:
-                await callback_query.message.edit_text(
-                    "❌ **Failed to create giveaway!**\n\n"
-                    "Possible reasons:\n"
-                    "• No preview data found\n"
-                    "• Database error\n"
-                    "• No broadcast channels set\n\n"
-                    "Please try again using `/sgive`"
-                )
+                error_text = """
+❌ **Failed to create giveaway!**
+
+Possible reasons:
+• No preview data found
+• Database error
+• No broadcast channels set
+• Bot cannot access broadcast channels
+
+Please check your settings and try again using `/sgive`
+                """
+                
+                await callback_query.message.edit_text(error_text)
                 await callback_query.answer("❌ Creation failed!")
         else:
             await callback_query.message.edit_text(
@@ -484,5 +595,5 @@ Participants can now join using `/part`
             "❌ **Giveaway creation cancelled.**\n\n"
             "Use `/sgive` to start a new giveaway creation."
         )
-
         await callback_query.answer("❌ Cancelled!")
+[file content end]
