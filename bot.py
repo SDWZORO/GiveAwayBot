@@ -4,6 +4,7 @@ from pyrogram import Client, filters, idle
 from pyrogram.types import Message
 import pytz
 from datetime import datetime
+import os
 
 from config import Config
 from database import JSONDatabase
@@ -124,7 +125,6 @@ async def main():
 
 if __name__ == "__main__":
     # Create data directory
-    import os
     os.makedirs(Config.DATA_DIR, exist_ok=True)
     
     # Run the bot
