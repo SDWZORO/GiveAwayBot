@@ -9,10 +9,10 @@ class UserCommands:
         self.db = db
         self.config = config
         
-        # Register user commands
-        self.bot.on_message(filters.command("start") & filters.private)(self.start_command)
-        self.bot.on_message(filters.command("part") & filters.private)(self.participate_command)
-        self.bot.on_message(filters.command("gstats") & filters.private)(self.giveaway_stats_user)
+        # Register user commands (works in both private and groups)
+        self.bot.on_message(filters.command("start"))(self.start_command)
+        self.bot.on_message(filters.command("part"))(self.participate_command)
+        self.bot.on_message(filters.command("gstats"))(self.giveaway_stats_user)
     
     async def start_command(self, client: Client, message: Message):
         """Start command handler"""
@@ -23,33 +23,51 @@ class UserCommands:
             await message.reply("🚫 Access Restricted\nYou are banned from using this bot.")
             return
         
-        welcome_text = """
-🎮🤖 **SMASH GIVEAWAY & CONTEST MANAGEMENT BOT**
+        # Get user mention
+        user_mention = message.from_user.mention
+        
+        welcome_text = f"""
+🔥 **Wᴇʟᴄᴏᴍᴇ ᴛᴏ ᴛʜᴇ Sᴍᴀsʜ Gɪᴠᴇᴀᴡᴀʏ Bᴏᴛ!** 🔥
 
-Welcome to the official Smash Giveaway Bot!
+**Hᴇʏ {user_mention}!**
 
-**Available Commands:**
-/part - Join active giveaway
-/gstats - Check giveaway status
+I ᴍᴀɴᴀɢᴇ ᴏғғɪᴄɪᴀʟ Sᴍᴀsʜ ᴄᴏɴᴛᴇsᴛs ᴡɪᴛʜ:
+• ✅ Fᴀɪʀ ᴡɪɴɴᴇʀ sᴇʟᴇᴄᴛɪᴏɴ
+• ✅ Sᴇᴄᴜʀᴇ ᴇɴᴛʀɪᴇs
+• ✅ Eᴘɪᴄ ʀᴇᴡᴀʀᴅs 🏆
 
-**Features:**
-✅ Automated & Fair Giveaways
-✅ Secure Participation System
-✅ Real-time Winner Selection
-✅ Anti-cheat Protection
+**🎁 Fᴇᴀᴛᴜʀᴇs:**
+• Jᴏɪɴ ɢɪᴠᴇᴀᴡᴀʏs ᴇᴀsɪʟʏ
+• Tʀᴀᴄᴋ ʏᴏᴜʀ sᴛᴀᴛs 📊
+• Wɪɴ ʙɪɢ ʀᴇᴡᴀʀᴅs ⚡️
 
-**Requirements:**
-1. Must join all required channels
-2. No multiple accounts
+**⚡️ Usᴇ /ᴘᴀʀᴛ ᴛᴏ ᴇɴᴛᴇʀ ᴛʜᴇ ᴀᴄᴛɪᴠᴇ ɢɪᴠᴇᴀᴡᴀʏ ɴᴏᴡ!**
+**📊 Usᴇ /ɢsᴛᴀᴛs ᴛᴏ ᴄʜᴇᴄᴋ ᴀᴄᴛɪᴠᴇ ɢɪᴠᴇᴀᴡᴀʏs**
 
-**NO Account Age Restriction**
-**NO Profile Photo Required**
+**📢 Rᴇǫᴜɪʀᴇᴍᴇɴᴛs:**
+1. Mᴜsᴛ ᴊᴏɪɴ ᴀʟʟ ʀᴇǫᴜɪʀᴇᴅ ᴄʜᴀɴɴᴇʟs
+2. Nᴏ ᴍᴜʟᴛɪᴘʟᴇ ᴀᴄᴄᴏᴜɴᴛs
+
+**✅ Nᴏ Aᴄᴄᴏᴜɴᴛ Aɢᴇ Rᴇsᴛʀɪᴄᴛɪᴏɴ**
+**✅ Nᴏ Pʀᴏғɪʟᴇ Pʜᴏᴛᴏ Rᴇǫᴜɪʀᴇᴅ**
         """
         
-        await message.reply(welcome_text)
+        # Create buttons for quick actions
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🎁 Join Giveaway", callback_data="check_subscription"),
+                InlineKeyboardButton("📊 Check Stats", callback_data="noop")
+            ],
+            [
+                InlineKeyboardButton("📢 Our Channels", url="https://t.me/Smash_uploads"),
+                InlineKeyboardButton("🤖 Bot Updates", url="https://t.me/ShadowBotsHQ")
+            ]
+        ])
+        
+        await message.reply(welcome_text, reply_markup=keyboard)
     
     async def participate_command(self, client: Client, message: Message):
-        """Participate in giveaway"""
+        """Participate in giveaway (works in both private and groups)"""
         user_id = message.from_user.id
         
         # Check if user is banned
@@ -73,6 +91,17 @@ Welcome to the official Smash Giveaway Bot!
         # For simplicity, get the first active giveaway
         giveaway = active_giveaways[0]
         giveaway_id = giveaway['id']
+        
+        # If in group chat, remind user to use bot in private for better experience
+        if message.chat.type != "private":
+            await message.reply(
+                f"🎮 **Giveaway Participation**\n\n"
+                f"**Event:** {giveaway['event_name']}\n"
+                f"**Prize:** {giveaway['prize_details']}\n\n"
+                f"Please use /part in private chat with me (@{self.bot.me.username}) "
+                f"for better experience and subscription check."
+            )
+            return
         
         # Validate user for participation
         from utils.validation import UserValidator
@@ -176,7 +205,18 @@ Welcome to the official Smash Giveaway Bot!
             await self.db.set_cooldown(user_id, "participate", self.config.COOLDOWN_PARTICIPATE)
             
             # Send success message
-            await message.reply("🎉 **Entry Confirmed!**\nGood luck 🍀")
+            success_text = f"""
+🎉 **Entry Confirmed!** 🎉
+
+**Event:** {giveaway['event_name']}
+**Prize:** {giveaway['prize_details']}
+**Your Entry ID:** `{user_id}_{giveaway_id}`
+**Joined At:** {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}
+
+Good luck 🍀 May the odds be in your favor!
+            """
+            
+            await message.reply(success_text)
             
             # Log participation to owner
             await self.log_participation_to_owner(message.from_user, giveaway)
@@ -192,7 +232,7 @@ Welcome to the official Smash Giveaway Bot!
             await message.reply(f"❌ {db_message}")
     
     async def giveaway_stats_user(self, client: Client, message: Message):
-        """Show giveaway stats for users"""
+        """Show giveaway stats for users (works in both private and groups)"""
         active_giveaways = await self.db.get_active_giveaways()
         
         if not active_giveaways:
@@ -201,41 +241,57 @@ Welcome to the official Smash Giveaway Bot!
         
         from utils.helpers import Helpers
         
-        for giveaway in active_giveaways[:3]:  # Show max 3 active giveaways
+        # Show max 2 active giveaways in groups, 3 in private
+        max_giveaways = 2 if message.chat.type != "private" else 3
+        
+        for giveaway in active_giveaways[:max_giveaways]:
             giveaway_id = giveaway['id']
             participants = await self.db.get_participants(giveaway_id)
             
             # Calculate time remaining
             end_time = datetime.fromisoformat(giveaway['end_time'])
-            time_remaining = Helpers.format_time_difference(datetime.now(pytz.UTC), end_time)
+            time_remaining = Helpers.get_time_remaining(end_time)
             
             # Check if user is participant
             is_participant = await self.db.is_participant(giveaway_id, message.from_user.id)
             
-            text = f"**🎁 Active Giveaway**\n\n"
-            text += f"**Event:** {giveaway['event_name']}\n"
-            text += f"**Prize:** {giveaway['prize_type'].title()} - {giveaway['prize_details']}\n"
-            text += f"**Winners:** {giveaway['winner_count']}\n"
-            text += f"**Participants:** {len(participants)}\n"
-            text += f"**Time Remaining:** {time_remaining}\n"
-            text += f"**Your Status:** {'✅ Joined' if is_participant else '❌ Not Joined'}\n\n"
+            text = f"""
+🎁 **Active Giveaway** 🎁
+
+**🏷 Event:** {giveaway['event_name']}
+**🎁 Prize:** {giveaway['prize_type'].title()} - {giveaway['prize_details']}
+**🏆 Winners:** {giveaway['winner_count']}
+**👥 Participants:** {len(participants)}
+**⏰ Time Remaining:** {time_remaining}
+**✅ Your Status:** {'🎟️ Joined' if is_participant else '❌ Not Joined'}
+
+**Giveaway ID:** `{giveaway_id}`
+            """
             
+            # Add join button for non-participants
             if not is_participant:
-                text += "Click /part to join!"
-            
-            await message.reply(text)
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🎁 Join Now", callback_data="check_subscription")
+                ]])
+                await message.reply(text, reply_markup=keyboard)
+            else:
+                await message.reply(text)
     
     async def log_participation_to_owner(self, user, giveaway):
         """Send log message to owner about user joining giveaway"""
         try:
-            log_text = f"📝 **User Joined Giveaway**\n\n"
-            log_text += f"**User:** {user.first_name}\n"
-            log_text += f"**ID:** `{user.id}`\n"
-            log_text += f"**Username:** @{user.username if user.username else 'N/A'}\n"
-            log_text += f"**Giveaway:** {giveaway['event_name']}\n"
-            log_text += f"**Giveaway ID:** `{giveaway['id']}`\n"
-            log_text += f"**Time:** {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
-            log_text += f"\nTotal Participants: {giveaway.get('participants_count', 0)}"
+            log_text = f"""
+📝 **User Joined Giveaway** 📝
+
+**👤 User:** {user.first_name}
+**🆔 ID:** `{user.id}`
+**📱 Username:** @{user.username if user.username else 'N/A'}
+**🎯 Giveaway:** {giveaway['event_name']}
+**🎫 Giveaway ID:** `{giveaway['id']}`
+**⏰ Time:** {datetime.now(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}
+
+**📊 Total Participants:** {giveaway.get('participants_count', 0)}
+            """
             
             await self.bot.send_message(self.config.OWNER_ID, log_text)
         except Exception as e:
