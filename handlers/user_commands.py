@@ -87,17 +87,6 @@ I ᴍᴀɴᴀɢᴇ ᴏғғɪᴄɪᴀʟ Sᴍᴀsʜ ᴄᴏɴᴛᴇsᴛs ᴡɪᴛʜ
         giveaway = active_giveaways[0]
         giveaway_id = giveaway['id']
         
-        # If in group chat, remind user to use bot in private for better experience
-        if message.chat.type != "private":
-            await message.reply(
-                f"🎮 **Giveaway Participation**\n\n"
-                f"**Event:** {giveaway['event_name']}\n"
-                f"**Prize:** {giveaway['prize_details']}\n\n"
-                f"Please use /part in private chat with me (@{self.bot.me.username}) "
-                f"for better experience and subscription check."
-            )
-            return
-        
         # Validate user for participation
         from utils.validation import UserValidator
         validator = UserValidator(self.config)
@@ -109,73 +98,42 @@ I ᴍᴀɴᴀɢᴇ ᴏғғɪᴄɪᴀʟ Sᴍᴀsʜ ᴄᴏɴᴛᴇsᴛs ᴡɪᴛʜ
         if not valid:
             if reason == "subscription_required" and missing:
                 # Show channels to join
-                from utils.channel_checker import ChannelChecker
-                checker = ChannelChecker(client, self.config.REQUIRED_CHANNELS)
-                channels = await checker.get_channel_links()
+                text = "📢 **Join Required Channels**\n\n"
+                text += "To participate in the giveaway, you must join these channels:\n\n"
                 
-                # If we can't get channel links, use the missing list
-                if not channels and missing:
-                    text = "📢 **Join Required Channels**\n\n"
-                    text += "To participate in the giveaway, you must join these channels:\n\n"
-                    
-                    for channel in missing:
-                        text += f"• {channel['name']}\n"
-                    
-                    text += "\nAfter joining, click the button below to verify."
-                    
-                    # Create buttons
-                    buttons = []
-                    for channel in missing:
-                        username = channel.get('username')
-                        if username:
-                            url = f"https://t.me/{username}"
-                            buttons.append([
-                                InlineKeyboardButton(
-                                    f"Join {channel['name']}",
-                                    url=url
-                                )
-                            ])
-                    
-                    buttons.append([
-                        InlineKeyboardButton(
-                            "✅ I've Joined All",
-                            callback_data=f"verify_sub_{giveaway_id}"
-                        )
-                    ])
-                    
-                    markup = InlineKeyboardMarkup(buttons)
-                    await message.reply(text, reply_markup=markup)
-                elif channels:
-                    text = "📢 **Join Required Channels**\n\n"
-                    text += "To participate in the giveaway, you must join these channels:\n\n"
-                    
-                    for channel in channels:
-                        text += f"• {channel['name']}\n"
-                    
-                    text += "\nAfter joining, click the button below to verify."
-                    
-                    # Create buttons
-                    buttons = []
-                    for channel in channels:
+                for channel in missing:
+                    text += f"• {channel['name']}\n"
+                
+                text += "\nAfter joining, click the button below to verify."
+                
+                # Create buttons
+                buttons = []
+                for channel in missing:
+                    username = channel.get('username')
+                    if username:
+                        url = f"https://t.me/{username}"
                         buttons.append([
                             InlineKeyboardButton(
                                 f"Join {channel['name']}",
-                                url=channel['link']
+                                url=url
                             )
                         ])
-                    
-                    buttons.append([
-                        InlineKeyboardButton(
-                            "✅ I've Joined All",
-                            callback_data=f"verify_sub_{giveaway_id}"
-                        )
-                    ])
-                    
-                    markup = InlineKeyboardMarkup(buttons)
-                    await message.reply(text, reply_markup=markup)
+                
+                buttons.append([
+                    InlineKeyboardButton(
+                        "✅ I've Joined All",
+                        callback_data=f"verify_sub_{giveaway_id}"
+                    )
+                ])
+                
+                markup = InlineKeyboardMarkup(buttons)
+                
+                # If in group, mention the user
+                if message.chat.type != "private":
+                    await message.reply(f"Hey {message.from_user.mention}!", reply_markup=markup)
                 else:
-                    # No channels to check, allow participation
-                    await self.complete_participation(message, user_id, giveaway_id, giveaway)
+                    await message.reply(text, reply_markup=markup)
+                return
             else:
                 await message.reply(reason)
             return
@@ -211,7 +169,11 @@ I ᴍᴀɴᴀɢᴇ ᴏғғɪᴄɪᴀʟ Sᴍᴀsʜ ᴄᴏɴᴛᴇsᴛs ᴡɪᴛʜ
 Good luck 🍀 May the odds be in your favor!
             """
             
-            await message.reply(success_text)
+            # If in group, mention the user
+            if message.chat.type != "private":
+                await message.reply(f"{message.from_user.mention} {success_text}")
+            else:
+                await message.reply(success_text)
             
             # Log participation to owner
             await self.log_participation_to_owner(message.from_user, giveaway)
@@ -224,7 +186,10 @@ Good luck 🍀 May the odds be in your favor!
                 f"User joined giveaway: {giveaway['event_name']}"
             )
         else:
-            await message.reply(f"❌ {db_message}")
+            if message.chat.type != "private":
+                await message.reply(f"{message.from_user.mention} ❌ {db_message}")
+            else:
+                await message.reply(f"❌ {db_message}")
     
     async def giveaway_stats_user(self, client: Client, message: Message):
         """Show giveaway stats for users (works in both private and groups)"""
@@ -266,11 +231,17 @@ Good luck 🍀 May the odds be in your favor!
             # Add join button for non-participants
             if not is_participant:
                 keyboard = InlineKeyboardMarkup([[
-                    InlineKeyboardButton("🎁 Join Now", callback_data="check_subscription")
+                    InlineKeyboardButton("🎁 Join Now", callback_data=f"verify_sub_{giveaway_id}")
                 ]])
-                await message.reply(text, reply_markup=keyboard)
+                if message.chat.type != "private":
+                    await message.reply(f"{message.from_user.mention} {text}", reply_markup=keyboard)
+                else:
+                    await message.reply(text, reply_markup=keyboard)
             else:
-                await message.reply(text)
+                if message.chat.type != "private":
+                    await message.reply(f"{message.from_user.mention} {text}")
+                else:
+                    await message.reply(text)
     
     async def log_participation_to_owner(self, user, giveaway):
         """Send log message to owner about user joining giveaway"""
@@ -291,5 +262,3 @@ Good luck 🍀 May the odds be in your favor!
             await self.bot.send_message(self.config.OWNER_ID, log_text)
         except Exception as e:
             print(f"Error sending log to owner: {e}")
-
-
