@@ -65,18 +65,6 @@ class Helpers:
         return ", ".join(parts) if parts else "Less than a minute"
     
     @staticmethod
-    def calculate_account_age(user: User) -> int:
-        """Calculate account age in days"""
-        if not hasattr(user, 'date') or not user.date:
-            return 0
-        
-        account_created = user.date.replace(tzinfo=pytz.UTC)
-        now = datetime.now(pytz.UTC)
-        
-        age_days = (now - account_created).days
-        return age_days
-    
-    @staticmethod
     def create_pagination_buttons(page: int, total_pages: int, prefix: str) -> InlineKeyboardMarkup:
         """Create pagination buttons"""
         buttons = []
@@ -169,3 +157,4 @@ class Helpers:
             parts.append(f"{seconds}s")
         
         return " ".join(parts) if parts else "Less than a minute"
+
