@@ -1,4 +1,3 @@
-# utils/validation.py
 from datetime import datetime
 import pytz
 
