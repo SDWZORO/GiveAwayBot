@@ -1,4 +1,3 @@
-
 from pyrogram import Client
 from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, Message
 from datetime import datetime
@@ -44,6 +43,8 @@ class CallbackHandler:
                 await self.handle_cancel_create(callback_query)
             elif data.startswith("giveaway_end_"):
                 await self.handle_end_giveaway(callback_query)
+            elif data.startswith("verify_sub_menu_"):
+                await self.handle_verify_subscription_menu(callback_query)
             elif data == "noop":
                 await callback_query.answer()
             else:
@@ -68,51 +69,90 @@ class CallbackHandler:
         self.bot.giveaway_handler = giveaway_handler
         return giveaway_handler
     
+    async def handle_verify_subscription_menu(self, callback_query: CallbackQuery):
+        """Show subscription verification menu"""
+        user_id = callback_query.from_user.id
+        
+        # Get active giveaway
+        active_giveaways = await self.db.get_active_giveaways()
+        if not active_giveaways:
+            await callback_query.answer("🎭 No active giveaway at the moment.", show_alert=True)
+            return
+        
+        giveaway = active_giveaways[0]
+        giveaway_id = giveaway['id']
+        
+        # Show channels to join
+        from utils.channel_checker import ChannelChecker
+        checker = ChannelChecker(self.bot, self.config.REQUIRED_CHANNELS)
+        channels = await checker.get_channel_links()
+        
+        text = "📢 **Join Required Channels**\n\n"
+        text += "To participate in the giveaway, you must join these channels:\n\n"
+        
+        for channel in channels:
+            text += f"• {channel['name']}\n"
+        
+        text += "\nAfter joining, click the button below to verify."
+        
+        # Create buttons
+        buttons = []
+        for channel in channels:
+            buttons.append([
+                InlineKeyboardButton(
+                    f"Join {channel['name']}",
+                    url=channel['link']
+                )
+            ])
+        
+        buttons.append([
+            InlineKeyboardButton(
+                "✅ I've Joined All",
+                callback_data=f"verify_sub_{giveaway_id}"
+            )
+        ])
+        
+        markup = InlineKeyboardMarkup(buttons)
+        
+        # Check if in group or private
+        if callback_query.message.chat.type != "private":
+            await callback_query.message.reply(
+                f"Hey {callback_query.from_user.mention}!\n\n{text}",
+                reply_markup=markup
+            )
+            await callback_query.answer()
+        else:
+            await callback_query.message.edit_text(text, reply_markup=markup)
+            await callback_query.answer()
+    
     async def handle_verify_subscription(self, callback_query: CallbackQuery):
         """Handle subscription verification"""
         user_id = callback_query.from_user.id
         giveaway_id = callback_query.data.replace("verify_sub_", "")
         
-        # Check if in group chat - redirect to private
-        if callback_query.message.chat.type != "private":
-            try:
-                await callback_query.answer(
-                    "⚠️ Please use this button in private chat with me for better experience!",
-                    show_alert=True
-                )
-                # Try to send a message in private
-                try:
-                    await self.bot.send_message(
-                        user_id,
-                        f"👋 Hello! Please click the button below to continue:\n\n"
-                        f"Giveaway ID: `{giveaway_id}`",
-                        reply_markup=InlineKeyboardMarkup([[
-                            InlineKeyboardButton(
-                                "✅ Verify Subscription",
-                                callback_data=f"verify_sub_{giveaway_id}"
-                            )
-                        ]])
-                    )
-                except:
-                    pass
-                return
-            except:
-                pass
+        # Check if in group chat
+        is_group = callback_query.message.chat.type != "private"
         
         # Check cooldown
         if not await self.db.check_cooldown(user_id, "check_subscription"):
             remaining = await self.db.get_remaining_cooldown(user_id, "check_subscription")
-            await callback_query.message.edit_text(
-                f"⏳ **Please wait {remaining} seconds before checking again.**"
-            )
-            await callback_query.answer()
+            if is_group:
+                await callback_query.answer(f"⏳ Please wait {remaining} seconds before checking again.", show_alert=True)
+            else:
+                await callback_query.message.edit_text(
+                    f"⏳ **Please wait {remaining} seconds before checking again.**"
+                )
+                await callback_query.answer()
             return
         
         # Set cooldown
         await self.db.set_cooldown(user_id, "check_subscription", self.config.COOLDOWN_CHECK)
         
         # Show checking message
-        await callback_query.message.edit_text("🔍 **Checking your subscriptions...**")
+        if not is_group:
+            await callback_query.message.edit_text("🔍 **Checking your subscriptions...**")
+        else:
+            await callback_query.answer("🔍 Checking your subscriptions...", show_alert=False)
         
         # Check subscription
         from utils.channel_checker import ChannelChecker
@@ -152,8 +192,17 @@ class CallbackHandler:
             ])
             
             markup = InlineKeyboardMarkup(buttons)
-            await callback_query.message.edit_text(text, reply_markup=markup)
-            await callback_query.answer("❌ Please join all channels!")
+            
+            if is_group:
+                # In group, send as new message
+                await callback_query.message.reply(
+                    f"{callback_query.from_user.mention} {text}",
+                    reply_markup=markup
+                )
+                await callback_query.answer("❌ Please join all channels!")
+            else:
+                await callback_query.message.edit_text(text, reply_markup=markup)
+                await callback_query.answer("❌ Please join all channels!")
             return
         
         # User is subscribed, check other requirements
@@ -165,15 +214,21 @@ class CallbackHandler:
         )
         
         if not valid and reason != "subscription_required":
-            await callback_query.message.edit_text(reason)
-            await callback_query.answer()
+            if is_group:
+                await callback_query.answer(reason, show_alert=True)
+            else:
+                await callback_query.message.edit_text(reason)
+                await callback_query.answer()
             return
         
         # Get giveaway
         giveaway = await self.db.get_giveaway(giveaway_id)
         if not giveaway:
-            await callback_query.message.edit_text("❌ Giveaway not found.")
-            await callback_query.answer()
+            if is_group:
+                await callback_query.answer("❌ Giveaway not found.", show_alert=True)
+            else:
+                await callback_query.message.edit_text("❌ Giveaway not found.")
+                await callback_query.answer()
             return
         
         # Add participant
@@ -184,7 +239,7 @@ class CallbackHandler:
             "joined_at": datetime.now(pytz.UTC).isoformat()
         }
         
-        success, message = await self.db.add_participant(giveaway_id, user_id, user_data)
+        success, db_message = await self.db.add_participant(giveaway_id, user_id, user_data)
         
         if success:
             # Set participation cooldown
@@ -202,7 +257,15 @@ class CallbackHandler:
 Good luck! 🍀 May you win this giveaway!
             """
             
-            await callback_query.message.edit_text(success_text)
+            if is_group:
+                # In group, send as reply
+                await callback_query.message.reply(
+                    f"{callback_query.from_user.mention} {success_text}"
+                )
+                await callback_query.answer("✅ Successfully joined giveaway!")
+            else:
+                await callback_query.message.edit_text(success_text)
+                await callback_query.answer("✅ Successfully joined giveaway!")
             
             # Log to owner
             from handlers.user_commands import UserCommands
@@ -218,19 +281,23 @@ Good luck! 🍀 May you win this giveaway!
                 giveaway_id,
                 f"User joined via subscription check: {giveaway['event_name']}"
             )
-            
-            await callback_query.answer("✅ Successfully joined giveaway!")
         else:
-            await callback_query.message.edit_text(f"❌ {message}")
-            await callback_query.answer()
+            if is_group:
+                await callback_query.answer(f"❌ {db_message}", show_alert=True)
+            else:
+                await callback_query.message.edit_text(f"❌ {db_message}")
+                await callback_query.answer()
     
     async def handle_check_subscription(self, callback_query: CallbackQuery):
         """Handle check subscription callback"""
         # Get active giveaway
         active_giveaways = await self.db.get_active_giveaways()
         if not active_giveaways:
-            await callback_query.message.edit_text("🎭 No active giveaway at the moment.")
-            await callback_query.answer()
+            if callback_query.message.chat.type != "private":
+                await callback_query.answer("🎭 No active giveaway at the moment.", show_alert=True)
+            else:
+                await callback_query.message.edit_text("🎭 No active giveaway at the moment.")
+                await callback_query.answer()
             return
         
         giveaway_id = active_giveaways[0]['id']
@@ -433,16 +500,6 @@ Good luck! 🍀 May you win this giveaway!
 User has been removed from the giveaway.
                 """
                 
-                await callback_query.message.edit_text(success_text)
-                
-                # Log the action
-                await self.db.add_log(
-                    "participant_removed",
-                    callback_query.from_user.id,
-                    giveaway_id,
-                    f"Removed user {user_id} ({user_info})"
-                )
-                
                 # Add back button
                 keyboard = InlineKeyboardMarkup([[
                     InlineKeyboardButton("🔙 Back to Participants", 
@@ -451,6 +508,14 @@ User has been removed from the giveaway.
                 
                 await callback_query.message.edit_text(success_text, reply_markup=keyboard)
                 await callback_query.answer("✅ Participant removed!")
+                
+                # Log the action
+                await self.db.add_log(
+                    "participant_removed",
+                    callback_query.from_user.id,
+                    giveaway_id,
+                    f"Removed user {user_id} ({user_info})"
+                )
             else:
                 await callback_query.message.edit_text("❌ User not found in giveaway.")
                 await callback_query.answer()
@@ -595,4 +660,3 @@ Please check your settings and try again using `/sgive`
             "Use `/sgive` to start a new giveaway creation."
         )
         await callback_query.answer("❌ Cancelled!")
-
