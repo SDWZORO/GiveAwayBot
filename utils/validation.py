@@ -23,11 +23,6 @@ class UserValidator:
         if await db.is_participant(giveaway_id, user_id):
             return False, "❌ You have already joined this giveaway.", None
         
-        # Check account age (at least 1 day old to prevent spam)
-        account_age = await self.calculate_account_age(user)
-        if account_age < 1:
-            return False, "❌ Your account must be at least 1 day old to participate.", None
-        
         # Check subscription requirement
         from utils.channel_checker import ChannelChecker
         checker = ChannelChecker(client, self.config.REQUIRED_CHANNELS)
@@ -37,14 +32,3 @@ class UserValidator:
             return False, "subscription_required", missing
         
         return True, "Valid user", None
-    
-    async def calculate_account_age(self, user):
-        """Calculate account age in days"""
-        if not hasattr(user, 'date') or not user.date:
-            return 0
-        
-        account_created = user.date.replace(tzinfo=pytz.UTC)
-        now = datetime.now(pytz.UTC)
-        
-        age_days = (now - account_created).days
-        return age_days
