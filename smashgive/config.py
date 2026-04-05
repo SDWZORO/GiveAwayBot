@@ -1,0 +1,23 @@
+"""
+Bot Configuration
+"""
+
+BOT_TOKEN = "8224658326:AAFRhXOTDBsB0coCMZUgwwaPOvOVfFaMbD4"
+
+OWNER_IDS = [8126219579, 8301883098, 5598691892]
+
+DEFAULT_CHANNELS = [-1002319525523, -1003529933265, -1003082964680, -1002807915293]
+
+DEFAULT_LANGUAGE = "en"
+
+SUPPORTED_LANGUAGES = ["en", "fr", "id", "fa", "ru"]
+
+TIMEZONE = "Asia/Kolkata"  # IST
+
+DB_PATH = "giveaway_bot.db"
+
+MAX_BOOST = 2.0  # Max total weight (1 + boost)
+
+USERS_PER_PAGE = 10
+
+GIVEAWAY_ID_PREFIX = "SMASH"
